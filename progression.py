@@ -61,24 +61,29 @@ def process_race_progression(lif_data):
             top_3 = []
             remaining = []
 
-        progression[event]["final"] += top_3
-        progression[event]["petite_final"] += remaining
+        progression[event]["final"] += [(heat, participant) for participant in top_3]
+        progression[event]["petite_final"] += [(heat, participant) for participant in remaining]
 
     return progression
-
 
 def main():
     directory = "/Users/sevdeneergaard/Venue/LLOP/LYNXOUTPUT"
     lif_data = read_lif_files(directory)
     progression = process_race_progression(lif_data)
 
-    for event, stages in progression.items():
+    sorted_events = sorted(progression.items(), key=lambda x: int(x[0].split(" ")[-1]))
+
+    for event, stages in sorted_events:
+        # Check if there are participants in both final and petite_final stages
+        if not stages["final"] and not stages["petite_final"]:
+            continue
+
         for stage, participants in stages.items():
             print(f"Event: {event}, {stage}")
-            assigned_lanes = assign_lanes(participants)
-            for lane, participant in assigned_lanes:
-                print(f"ID: {participant[1]}, Lane: {lane}, Last Name: {participant[3]}, First Name: {participant[4]}, Affiliation: {participant[5]}, Time: {participant[6]}")
-
+            assigned_lanes = assign_lanes([p for _, p in participants])  # Extract participants from (heat, participant) tuples
+            for (lane, participant), (original_heat, _) in zip(sorted(assigned_lanes, key=lambda x: x[0]), participants):
+                print(f"ID: {participant[1]}, Lane: {lane}, Last Name: {participant[3]}, First Name: {participant[4]}, Affiliation: {participant[5]}, Time: {participant[6]}, Original Heat: {original_heat}")
 
 if __name__ == "__main__":
     main()
+
