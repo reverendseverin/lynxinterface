@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <title>EVT Generator</title>
+</head>
+<body>
+    <div class="container">
+        <h1>CSV to Lynx.evt Converter</h1>
+        <p>
+            This web application converts a CSV file into a Lynx.evt file.
+            Please follow these instructions to convert your CSV file:
+        </p>
+        <ol>
+            <li>Click the "Choose File" button below and select your CSV file.</li>
+            <li>The application will automatically match the column headers with the expected labels. If necessary, you can manually adjust the column mappings using the dropdown menus.</li>
+            <li>Click the "Convert" button to convert the CSV file into a Lynx.evt file.</li>
+            <li>Click the "Download lynx.evt" button to download the converted file.</li>
+        </ol>
+        <div class="form-group">
+            <label for="inputFile">Select CSV file:</label>
+            <input type="file" class="form-control-file" id="inputFile" accept=".csv">
+        </div>        
+        <div id="mappingSection" style="display: none;">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="event">Event:</label>
+                        <select class="form-control" id="event"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="heat">Heat:</label>
+                        <select class="form-control" id="heat"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Description:</label>
+                        <select class="form-control" id="description"></select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="boat_id">Boat ID:</label>
+                        <select class="form-control" id="boat_id"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="lane">Lane:</label>
+                        <select class="form-control" id="lane"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="club">Boat Name:</label>
+                        <select class="form-control" id="club"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="boat_label">Boat Label:</label>
+                        <select class="form-control" id="boat_label"></select>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="convertCSVtoLynx()">Convert</button>
+            <a href="#" class="btn btn-success mt-2" id="downloadLink" download="lynx.evt" style="display: none;">Download lynx.evt</a>
+            <div class="mt-4">
+                <h4>EVT 20 Line Preview:</h4>
+                <pre id="outputPreview" style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 1rem;"></pre>
+            </div>
+        </div>
+    </div>
+    <script>
+        let headers = [];
+    
+        document.getElementById('inputFile').addEventListener('change', function () {
+            const inputFile = this.files[0];
+            if (!inputFile) {
+                return;
+            }
+    
+            inputFile.text().then(content => {
+                const csvLines = content.split('\n');
+                headers = csvLines[0].split(',');
+    
+                const mappingSection = document.getElementById('mappingSection');
+                mappingSection.style.display = 'block';
+    
+                const inputLabels = ['event', 'heat', 'description', 'boat_id', 'lane', 'club', 'boat_label'];
+                inputLabels.forEach(label => {
+                    const selectElement = document.getElementById(label);
+                    selectElement.innerHTML = '';
+    
+                    headers.forEach((header, index) => {
+                        const option = document.createElement('option');
+                        option.value = header;
+                        option.innerText = header;
+                        selectElement.appendChild(option);
+    
+                        // Automatically select the matching header
+                        if (header.toLowerCase().replace(/ /g, '_') === label) {
+                            selectElement.selectedIndex = index;
+                        }
+                    });
+                });
+            });
+        });
+    
+        function convertCSVtoLynx() {
+            const inputFile = document.getElementById('inputFile').files[0];
+            if (!inputFile) {
+                alert('Please select a CSV file');
+                return;
+            }
+    
+            const eventKey = document.getElementById('event').value;
+            const heatKey = document.getElementById('heat').value;
+            const descriptionKey = document.getElementById('description').value;
+            const boatIdKey = document.getElementById('boat_id').value;
+            const laneKey = document.getElementById('lane').value;
+            const clubKey = document.getElementById('club').value;
+            const boatLabelKey = document.getElementById('boat_label').value;
+    
+            inputFile.text().then(content => {
+                const csvLines = content.split('\n');
+    
+                const csvData = csvLines.slice(1).map(line => {
+                    const values = line.split(',');
+                    return headers.reduce((obj, header, index) => {
+                        obj[header] = values[index];
+                        return obj;
+                    }, {});
+                });
+    
+                let currentEvent = null;
+                let currentHeat = null;
+                const outputLines = [];
+    
+                csvData.forEach(row => {
+                    const event = row[eventKey];
+                    const heat = row[heatKey];
+                    const description = row[descriptionKey];
+                    const boat_id = row[boatIdKey];
+                    const lane = row[laneKey];
+                    const club = row[clubKey];
+                    const boat_label = row[boatLabelKey];
+    
+                    if (event !== currentEvent || heat !== currentHeat) {
+                        currentEvent = event;
+                        currentHeat = heat;
+                        outputLines.push(`${event},1,${heat},"${description}",,`);
+                    }
+    
+                    outputLines.push(`    ,${boat_id},${lane},,,${club}`);
+                });
+                const outputContent = outputLines.join('\n');
+                const outputPreview = document.getElementById('outputPreview');
+                const previewLines = outputLines.slice(0, 20).join('\n');
+                outputPreview.textContent = previewLines
+                const downloadLink = document.getElementById('downloadLink');
+                downloadLink.href = URL.createObjectURL(new Blob([outputContent], { type: 'text/plain' }));
+                downloadLink.style.display = 'block';
+            });
+        }
+    </script>    
+</body>
+</html>
