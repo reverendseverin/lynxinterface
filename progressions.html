@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Race Progression</title>
+</head>
+<body>
+    <h1>Race Progression</h1>
+    <input type="file" id="file-input" multiple webkitdirectory>
+    <button onclick="processFiles()">Process Files</button>
+    <p id="status-bar">Status: Awaiting files...</p>
+    <div id="output"></div>
+    
+    <script>
+        function readLifFiles(files) {
+            const lifData = new Map();
+            const promises = [];
+
+            for (const file of files) {
+                if (file.name.endsWith(".lif")) {
+                    const promise = new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            const content = event.target.result;
+                            const lines = content.split('\n');
+                            const [event, roundType, heat, ...rest] = lines[0].split(',');
+                            const eventHeat = [event, heat];
+
+                            const participants = lines.slice(1).filter(line => line && !isNaN(line[0])).map(line => line.split(','));
+
+                            if (lifData.has(eventHeat)) {
+                                lifData.get(eventHeat).push(...participants);
+                            } else {
+                                lifData.set(eventHeat, participants);
+                            }
+                            resolve();
+                        };
+                        reader.readAsText(file);
+                    });
+                    promises.push(promise);
+                }
+            }
+
+            return Promise.all(promises).then(() => lifData);
+        }
+
+
+
+        function assignLanes(participants) {
+            function getTime(participant) {
+                try {
+                    return parseFloat(participant[5]);
+                } catch (error) {
+                    return Infinity;
+                }
+            }
+
+            participants.sort((a, b) => getTime(a) - getTime(b));
+            const laneOrder = [3, 4, 2, 5, 1, 6, 7];
+            const assignedLanes = [];
+
+            for (let i = 0; i < participants.length; i++) {
+                assignedLanes.push([laneOrder[i], participants[i]]);
+            }
+
+            return assignedLanes;
+        }
+
+        function processRaceProgression(lifData) {
+            const progression = new Map();
+
+            const eventParticipants = new Map();
+            for (const [eventHeat, participants] of lifData) {
+                const [event, heat] = eventHeat;
+                if (eventParticipants.has(event)) {
+                    eventParticipants.get(event).push(...participants);
+                } else {
+                    eventParticipants.set(event, participants);
+                }
+            }
+
+            for (const [eventHeat, participants] of lifData) {
+                const [event, heat] = eventHeat;
+                const numEntries = eventParticipants.get(event).length;
+
+                let top, remaining;
+                if (8 <= numEntries && numEntries <= 12) {
+                    top = participants.slice(0, 3);
+                    remaining = participants.slice(3);
+                } else if (13 <= numEntries && numEntries <= 14) {
+                    top = participants.slice(0, 3);
+                    remaining = participants.slice(3, 6);
+                } else if (15 <= numEntries && numEntries <= 18) {
+                    top = participants.slice(0, 2);
+                    remaining = participants.slice(2, 4);
+                } else {
+                    top = [];
+                    remaining = [];
+                }
+
+                if (!progression.has(event)) {
+                    progression.set(event, { final: [], petite_final: [] });
+                }
+                progression.get(event).final.push(...top.map(participant => [heat, participant]));
+                progression.get(event).petite_final.push(...remaining.map(participant => [heat, participant]));
+                }
+                return progression;
+            }
+        
+        function displayProgression(progression) {
+            const output = document.getElementById('output');
+            output.innerHTML = '';
+    
+            for (const [event, results] of progression) {
+                const finalResults = assignLanes(results.final);
+                const petiteFinalResults = assignLanes(results.petite_final);
+    
+                const eventDiv = document.createElement('div');
+                const eventHeader = document.createElement('h2');
+                eventHeader.textContent = `Event ${event}`;
+                eventDiv.appendChild(eventHeader);
+    
+                const finalHeader = document.createElement('h3');
+                finalHeader.textContent = 'Final';
+                eventDiv.appendChild(finalHeader);
+                const finalList = document.createElement('ul');
+                for (const [lane, participant] of finalResults) {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `Lane ${lane}: ${participant.join(', ')}`;
+                    finalList.appendChild(listItem);
+                }
+                eventDiv.appendChild(finalList);
+    
+                const petiteFinalHeader = document.createElement('h3');
+                petiteFinalHeader.textContent = 'Petite Final';
+                eventDiv.appendChild(petiteFinalHeader);
+                const petiteFinalList = document.createElement('ul');
+                for (const [lane, participant] of petiteFinalResults) {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `Lane ${lane}: ${participant.join(', ')}`;
+                    petiteFinalList.appendChild(listItem);
+                }
+                eventDiv.appendChild(petiteFinalList);
+    
+                output.appendChild(eventDiv);
+            }
+            const statusBar = document.getElementById('status-bar');
+            statusBar.textContent = 'Status: Results displayed.';
+        }
+    
+        async function processFiles() {
+            const statusBar = document.getElementById('status-bar');
+            statusBar.textContent = 'Status: Processing files...';
+            const fileInput = document.getElementById('file-input');
+            const files = fileInput.files;
+
+            const lifData = await readLifFiles(files);
+            const raceProgression = processRaceProgression(lifData);
+            displayProgression(raceProgression);
+        }
+        window.processFiles = processFiles;
+    </script>
+</body>
+</html>

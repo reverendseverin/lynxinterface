@@ -1,6 +1,8 @@
 import os
 import csv
 from collections import defaultdict
+import tkinter as tk
+from tkinter import filedialog, ttk
 
 def read_lif_files(directory):
     lif_data = defaultdict(list)
@@ -66,24 +68,56 @@ def process_race_progression(lif_data):
 
     return progression
 
-def main():
-    directory = "/Users/sevdeneergaard/Venue/LLOP/LYNXOUTPUT"
+def main(directory, notebook):
     lif_data = read_lif_files(directory)
     progression = process_race_progression(lif_data)
 
     sorted_events = sorted(progression.items(), key=lambda x: int(x[0].split(" ")[-1]))
 
     for event, stages in sorted_events:
-        # Check if there are participants in both final and petite_final stages
         if not stages["final"] and not stages["petite_final"]:
             continue
 
-        for stage, participants in stages.items():
-            print(f"Event: {event}, {stage}")
-            assigned_lanes = assign_lanes([p for _, p in participants])  # Extract participants from (heat, participant) tuples
+        event_tab = ttk.Frame(notebook)
+        notebook.add(event_tab, text=f"Event {event}")
+
+        for index, (stage, participants) in enumerate(stages.items()):
+            tree = ttk.Treeview(event_tab, columns=("ID", "Lane", "Last Name", "First Name", "Affiliation", "Time", "Original Heat"), show="headings")
+            tree.heading("ID", text="ID")
+            tree.heading("Lane", text="Lane")
+            tree.heading("Last Name", text="Last Name")
+            tree.heading("First Name", text="First Name")
+            tree.heading("Affiliation", text="Affiliation")
+            tree.heading("Time", text="Time")
+            tree.heading("Original Heat", text="Original Heat")
+            tree.grid(row=index, column=0, padx=(10, 0), pady=(10, 0), sticky="nsew")
+
+            race_type_label = tk.Label(event_tab, text=f"{stage.capitalize()} ({event})", font=("Helvetica", 12, "bold"))
+            race_type_label.grid(row=index, column=0, padx=(10, 0), pady=(0, 10), sticky="nsew")
+
+            assigned_lanes = assign_lanes([p for _, p in participants])
+
             for (lane, participant), (original_heat, _) in zip(sorted(assigned_lanes, key=lambda x: x[0]), participants):
-                print(f"ID: {participant[1]}, Lane: {lane}, Last Name: {participant[3]}, First Name: {participant[4]}, Affiliation: {participant[5]}, Time: {participant[6]}, Original Heat: {original_heat}")
+                tree.insert("", tk.END, values=(participant[1], lane, participant[3], participant[4], participant[5], participant[6], original_heat))
+
+
+def browse_button_callback(notebook):
+    directory = filedialog.askdirectory()
+    main(directory, notebook)
+
+
+def create_app_window():
+    app = tk.Tk()
+    app.title("Race Progression Analyzer")
+
+    browse_button = tk.Button(app, text="Select Directory", command=lambda: browse_button_callback(notebook))
+    browse_button.pack()
+
+    notebook = ttk.Notebook(app)
+    notebook.pack(expand=True, fill=tk.BOTH)
+
+    app.mainloop()
+
 
 if __name__ == "__main__":
-    main()
-
+    create_app_window()
